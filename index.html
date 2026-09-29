@@ -210,10 +210,10 @@ function layout(n) {
   // Parliament arch with one spacing everywhere: find the largest spacing s whose rows (radii stepping
   // inward by s, each holding floor(pi*r/s)+1 seats) fit all n members, then share the n seats among the
   // rows in proportion to their capacity so every row is evenly and near-equally filled.
-  const R = 94, rMin = R * 0.36;
-  if (n <= 3) {
+  const R = 94, rMin = R * (n <= 18 ? 0.56 : n <= 30 ? 0.46 : 0.36);
+  if (n <= 12) {                       // small bodies: one evenly spaced arc reads cleaner than sparse rows
     const pts = Array.from({ length: n }, (_, j) => { const a = n === 1 ? Math.PI / 2 : Math.PI * (1 - j / (n - 1)); return { a, r: R, x: 100 + R * Math.cos(a), y: 100 - R * Math.sin(a) }; });
-    return { pts, dot: n === 1 ? 10 : Math.min(10, 0.4 * Math.PI * R / (n - 1)) };
+    return { pts, dot: n === 1 ? 11 : Math.min(11, 0.36 * Math.PI * R / (n - 1)) };
   }
   let lo = 0.5, hi = R, rows = [];
   const fit = s => { const k = Math.floor((R - rMin) / s) + 1, radii = Array.from({ length: k }, (_, i) => R - i * s);
