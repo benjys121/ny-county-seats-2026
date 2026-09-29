@@ -207,22 +207,26 @@ function stats(b) {
   return { up, unc, p };
 }
 function layout(n) {
-  const R = 90, r0 = R * 0.4; let best = null;
-  for (let rows = n <= 4 ? 1 : 2; rows <= 8; rows++) {
-    const step = rows === 1 ? 0 : (R - r0) / (rows - 1);
-    const radii = Array.from({ length: rows }, (_, i) => rows === 1 ? R : r0 + step * i);
-    const arc = radii.reduce((a, r) => a + Math.PI * r, 0), along = arc / Math.max(1, n - rows);
-    const score = rows === 1 ? 0 : Math.abs(Math.log(along / step));
-    if (!best || score < best.score) best = { score, radii, step };
+  // Parliament arch with one spacing everywhere: find the largest spacing s whose rows (radii stepping
+  // inward by s, each holding floor(pi*r/s)+1 seats) fit all n members, then share the n seats among the
+  // rows in proportion to their capacity so every row is evenly and near-equally filled.
+  const R = 94, rMin = R * 0.36;
+  if (n <= 3) {
+    const pts = Array.from({ length: n }, (_, j) => { const a = n === 1 ? Math.PI / 2 : Math.PI * (1 - j / (n - 1)); return { a, r: R, x: 100 + R * Math.cos(a), y: 100 - R * Math.sin(a) }; });
+    return { pts, dot: n === 1 ? 10 : Math.min(10, 0.4 * Math.PI * R / (n - 1)) };
   }
-  const { radii } = best, rows = radii.length, len = radii.reduce((a, r) => a + r, 0);
-  let counts = radii.map(r => Math.max(1, Math.round(n * r / len))), diff = n - counts.reduce((a, c) => a + c, 0);
-  for (let i = rows - 1; diff !== 0; i = (i - 1 + rows) % rows) { if (diff > 0) { counts[i]++; diff--; } else if (counts[i] > 1) { counts[i]--; diff++; } }
+  let lo = 0.5, hi = R, rows = [];
+  const fit = s => { const k = Math.floor((R - rMin) / s) + 1, radii = Array.from({ length: k }, (_, i) => R - i * s);
+    return radii.map(r => ({ r, cap: Math.floor(Math.PI * r / s) + 1 })); };
+  for (let it = 0; it < 60; it++) { const mid = (lo + hi) / 2, rr = fit(mid); if (rr.reduce((a, x) => a + x.cap, 0) >= n) { lo = mid; rows = rr; } else hi = mid; }
+  const sp = lo, cap = rows.reduce((a, x) => a + x.cap, 0);
+  let counts = rows.map(x => Math.floor(n * x.cap / cap)), left = n - counts.reduce((a, c) => a + c, 0);
+  // give leftover seats to the rows that lost the most in rounding
+  rows.map((x, i) => [n * x.cap / cap - counts[i], i]).sort((a, b) => b[0] - a[0]).slice(0, left).forEach(([, i]) => counts[i]++);
   const pts = [];
-  radii.forEach((r, i) => { const c = counts[i]; for (let j = 0; j < c; j++) { const a = c === 1 ? Math.PI / 2 : Math.PI * (1 - j / (c - 1)); pts.push({ a, r, x: 100 + r * Math.cos(a), y: 100 - r * Math.sin(a) }); } });
+  rows.forEach(({ r }, i) => { const c = counts[i]; for (let j = 0; j < c; j++) { const a = c === 1 ? Math.PI / 2 : Math.PI * (1 - j / (c - 1)); pts.push({ a, r, x: 100 + r * Math.cos(a), y: 100 - r * Math.sin(a) }); } });
   pts.sort((p, q) => q.a - p.a || q.r - p.r);
-  const gaps = radii.map((r, i) => counts[i] > 1 ? Math.PI * r / (counts[i] - 1) : 99);
-  return { pts, dot: Math.min(8, 0.42 * Math.min(rows > 1 ? best.step : 99, ...gaps)) };
+  return { pts, dot: Math.min(10, 0.42 * sp) };
 }
 function icon(b) {
   const seats = seatsOf(b), { pts, dot } = layout(b.total), s = stats(b);
