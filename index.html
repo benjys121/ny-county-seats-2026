@@ -111,6 +111,15 @@ footer{font-size:12px;color:var(--ink-3);border-top:1px solid var(--rule);paddin
 .sec-h{font-family:var(--display);font-stretch:85%;font-size:24px;margin:0 0 6px;text-wrap:balance}
 .sec-p{margin:0 0 14px;color:var(--ink-2);max-width:70ch}
 .hemi.static{cursor:default}
+.stat.wide{grid-column:1/-1;gap:12px}
+.figs{display:flex;flex-wrap:wrap;gap:14px 40px;align-items:flex-end}
+.figs div{display:flex;flex-direction:column;gap:2px}
+.figs .big{font-size:44px}
+.figs .lab{font-size:13px;color:var(--ink-2)}
+.bt{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 24px}
+.bt h3{font-family:var(--display);font-stretch:85%;font-size:15px;margin:0 0 2px}
+.bt p{margin:0;font-size:13px;color:var(--ink-2)}
+.bt .n{font-size:13px;color:var(--ink);font-weight:600;margin-bottom:2px}
 .lg{display:inline-flex;align-items:center;gap:6px}
 
 .toggle{display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:13px;font-weight:600;color:var(--ink);background:var(--panel);border:1px solid var(--rule);border-radius:999px;padding:6px 12px 6px 8px;cursor:pointer}
@@ -140,8 +149,7 @@ footer{font-size:12px;color:var(--ink-3);border-top:1px solid var(--rule);paddin
   <header>
     <div class="eyebrow">New York · County legislatures and boards of supervisors outside NYC · November 3, 2026</div>
     <h1>Who holds New York's county seats, and <span class="hl">how many are up for grabs</span></h1>
-    <p class="lede">Each half-circle is one county's legislative body, one dot per member, colored by the member's party. Switch on the highlight to see which of this year's races have only one candidate. Select a county for every member's name and their seat's 2026 race.</p>
-    <div class="stats" id="stats"></div>
+        <div class="stats" id="stats"></div>
   </header>
   <div class="controls">
     <div class="ctl-group" role="group" aria-label="Body type">
@@ -248,21 +256,42 @@ function detail(b) {
   const seats = seatsOf(b).slice().sort((a, c) => String(a.seat).localeCompare(String(c.seat), undefined, { numeric: true }));
   const shown = new Set(seats.filter(x => x.race).map(x => x.race.label));
   const orphan = Object.values(b.races).filter(r => !shown.has(r.label));
-  const rows = seats.map(x => `<tr class="${x.race && x.race.unc ? "u" : ""}"><td class="num">${esc(x.seat)}</td><td>${esc(x.name) || "<span style='color:var(--ink-3)'>not collected</span>"}</td>
+  // multi-member districts: number each member within their shared seat
+  const size = {}, nth = {};
+  seats.forEach(x => size[x.seat] = (size[x.seat] || 0) + 1);
+  const base = s => b.k === "L" && /^\d+$/.test(String(s)) ? `District ${s}` : String(s);
+  const label = x => { nth[x.seat] = (nth[x.seat] || 0) + 1; return size[x.seat] > 1 ? `${base(x.seat)} <span style="color:var(--ink-3)">(${nth[x.seat]} of ${size[x.seat]})</span>` : esc(base(x.seat)); };
+  const multi = Object.keys(size).filter(k => size[k] > 1);
+  const and = a => a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
+  const listOf = a => b.k === "L" && a.every(k => /^\d+$/.test(k)) ? (a.length > 1 ? "Districts " : "District ") + and(a) : and(a.map(base));
+  const multiNote = multi.length ? `<p style="margin:-2px 0 10px;font-size:12px;color:var(--ink-2);max-width:80ch">${b.k === "L" ? "Multi-member districts: " : "Shared seats: "}${
+    multi.length === Object.keys(size).length ? `every ${b.k === "L" ? "district" : "seat"} here elects more than one member` : `${listOf(multi)} ${multi.length > 1 ? "each elect" : "elects"} more than one member`
+  }, so the same ${b.k === "L" ? "district" : "seat"} appears once per member. Counties use them to balance population across towns without splitting them.</p>` : "";
+  const rows = seats.map(x => `<tr class="${x.race && x.race.unc ? "u" : ""}"><td class="num">${label(x)}</td><td>${esc(x.name) || "<span style='color:var(--ink-3)'>not collected</span>"}</td>
     <td><span class="pill ${cls(x.party)}" title="${esc(x.detail || PARTY[x.party] || "")}">${esc(x.party)}</span></td><td>${raceCell(x.race)}</td></tr>`).join("")
-    + orphan.map(r => `<tr class="${r.unc ? "u" : ""}"><td>${esc(r.label)}</td><td style="color:var(--ink-3)">—</td><td></td><td>${raceCell(r)}</td></tr>`).join("");
+    + orphan.map(r => `<tr class="${r.unc ? "u" : ""}"><td>${esc(base(r.label))}</td><td style="color:var(--ink-3)">—</td><td></td><td>${raceCell(r)}</td></tr>`).join("");
   const s = stats(b);
   return `<div class="detail" role="region" aria-label="${esc(b.c)} members"><h3>${esc(b.c)} County ${b.k === "L" ? "legislature" : "board of supervisors"}</h3>
     <div class="meta num">${b.total} seats · ${s.up} on the 2026 ballot · ${s.unc} uncontested</div>
+    ${multiNote}
     ${b.notes ? `<details style="margin:-4px 0 10px;font-size:12px;color:var(--ink-3)"><summary style="cursor:pointer">Sources and notes</summary><p style="margin:6px 0 0;max-width:90ch">${esc(b.notes)}</p></details>` : ""}
     <div class="tbl"><table class="mt"><thead><tr><th>Seat</th><th>Current member</th><th>Party</th><th>2026 race</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
+function totals(bs) {
+  const up = bs.reduce((a, b) => a + stats(b).up, 0), unc = bs.reduce((a, b) => a + stats(b).unc, 0), tot = bs.reduce((a, b) => a + b.total, 0);
+  const p = {}; bs.forEach(b => b.members.forEach(m => p[m.party] = (p[m.party] || 0) + 1));
+  return { n: bs.length, up, unc, tot, p };
+}
 function statCards() {
-  const card = (t, bs) => { const up = bs.reduce((a, b) => a + stats(b).up, 0), unc = bs.reduce((a, b) => a + stats(b).unc, 0), tot = bs.reduce((a, b) => a + b.total, 0);
-    const p = {}; bs.forEach(b => b.members.forEach(m => p[m.party] = (p[m.party] || 0) + 1));
-    return `<div class="stat"><h2>${t}</h2><div><span class="big num">${unc}</span> <span class="sub num">of ${up} seats on the 2026 ballot uncontested</span></div>
-      <div class="sub num">${tot} seats in all · current members: ${partyLine(p)}</div></div>`; };
-  $("#stats").innerHTML = card("County legislatures", DATA.filter(b => b.k === "L")) + card("Boards of supervisors", DATA.filter(b => b.k === "S"));
+  const A = totals(DATA), L = totals(DATA.filter(b => b.k === "L")), S = totals(DATA.filter(b => b.k === "S"));
+  const pct = (a, b) => Math.round(100 * a / b);
+  $("#stats").innerHTML = `<div class="stat wide">
+    <div class="figs">
+      <div><span class="big num">${A.tot}</span><span class="lab">county seats in all</span></div>
+      <div><span class="big num">${A.up}</span><span class="lab">up for election Nov. 3 (${pct(A.up, A.tot)}%)</span></div>
+      <div><span class="big num">${A.unc}</span><span class="lab">of those unopposed (${pct(A.unc, A.up)}%)</span></div>
+    </div>
+    <p class="sub num" style="margin:0;max-width:90ch">${L.n} counties have a <b>legislature</b> (${L.tot} seats), elected by district. The other ${S.n} have a <b>board of supervisors</b> (${S.tot} seats): each town's elected supervisor also sits on the county board, with votes weighted by population. Current members: <span style="white-space:nowrap">${partyLine(A.p)}</span>.</p></div>`;
 }
 function legend() {
   const sw = c => `<svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" class="${c}"/></svg>`;
