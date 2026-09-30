@@ -270,8 +270,7 @@ footer{font-size:12px;color:var(--ink-3);border-top:1px solid var(--rule);paddin
     <div><span class="big num">990</span><span class="lab">local lawmaking seats</span></div>
     <div><span class="big num">464</span><span class="lab">on the ballot Nov. 3</span></div>
     <div><span class="big num">210</span><span class="lab">of those contested (45%)</span></div>
-    <div><span class="big num">10</span><span class="lab">bodies where control could change</span></div></div>
-    <p class="sub" style="margin:0;max-width:92ch">Counts cover the 41 county legislatures, the 16 county boards of supervisors (made up of town supervisors, with votes weighted by population) and the New York City Council.</p></div></div>
+    <div><span class="big num">10</span><span class="lab">bodies where control could change</span></div></div></div></div>
     <div class="lookbar" role="group" aria-label="Design option">
       <span class="ctl-label">Design option</span>
       <div class="seg" id="look">
@@ -870,8 +869,7 @@ function statCards() {
     <div><span class="big num">${fmt(tot)}</span><span class="lab">local lawmaking seats</span></div>
     <div><span class="big num">${up}</span><span class="lab">on the ballot Nov. 3</span></div>
     <div><span class="big num">${con}</span><span class="lab">of those contested (${Math.round(100 * con / up)}%)</span></div>
-    <div><span class="big num">${flip}</span><span class="lab">bodies where control could change</span></div></div>
-    <p class="sub" style="margin:0;max-width:92ch">Counts cover the 41 county legislatures, the 16 county boards of supervisors (made up of town supervisors, with votes weighted by population) and the New York City Council.</p></div>`;
+    <div><span class="big num">${flip}</span><span class="lab">bodies where control could change</span></div></div></div>`;
 }
 function legend() {
   const sw = c => `<svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" class="${c}"/></svg>`;
