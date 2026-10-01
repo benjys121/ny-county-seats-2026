@@ -756,14 +756,13 @@ function detail(b) {
   const base = s => b.k === "L" && /^\d+$/.test(String(s)) ? `District ${s}` : String(s);
   const label = x => { nth[x.seat] = (nth[x.seat] || 0) + 1; return size[x.seat] > 1 ? `${esc(base(x.seat))} <span style="color:var(--ink-3)">(${nth[x.seat]} of ${size[x.seat]})</span>` : esc(base(x.seat)); };
   const wtd = b.comp && b.comp.weighted, wCell = x => wtd ? `<td class="num">${x.weight ?? "—"}</td>` : "";
-  const rows = seats.map(x => `<tr class="${x.race && !x.race.unc ? "u" : ""}"><td class="num">${label(x)}</td><td>${esc(x.name)}</td>
-    <td><span class="pill ${cls(x.party)}" title="${esc(x.detail || PARTY[x.party] || "")}">${esc(x.party)}</span></td>${wCell(x)}<td>${raceCell(x.race)}</td></tr>`).join("")
-    + orphan.map(r => `<tr><td>${esc(base(r.label))}</td><td style="color:var(--ink-3)">—</td><td></td>${wtd ? "<td></td>" : ""}<td>${raceCell(r)}</td></tr>`).join("");
+  const rows = seats.map(x => `<tr class="${x.race && !x.race.unc ? "u" : ""}"><td class="num">${label(x)}</td><td>${esc(x.name)} <span class="pill ${cls(x.party)}" title="${esc(x.detail || PARTY[x.party] || "")}">${esc(x.party)}</span></td>${wCell(x)}<td>${raceCell(x.race)}</td></tr>`).join("")
+    + orphan.map(r => `<tr><td>${esc(base(r.label))}</td><td style="color:var(--ink-3)">—</td>${wtd ? "<td></td>" : ""}<td>${raceCell(r)}</td></tr>`).join("");
   return `<div class="detail" id="${esc(b.slug)}" role="region" aria-label="${esc(bodyName(b))}"><h3>${esc(bodyName(b))}</h3>
     ${factsRow(b)}
     <p class="flipnote">${esc(compLine(b.comp))}${wtd ? "" : b.k === "S" ? " Members' votes are weighted by population, so seat counts only approximate control." : ""}</p>
     ${wtd ? `<p style="margin:-4px 0 10px;font-size:12px;color:var(--ink-3)">Weighted votes: ${esc(b.comp.weight_source)}</p>` : ""}
-    <div class="tbl"><table class="mt"><thead><tr><th>Seat</th><th>Current member</th><th>Party</th>${wtd ? "<th>Weighted vote</th>" : ""}<th>2026 race</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+    <div class="tbl"><table class="mt"><thead><tr><th>Seat</th><th>Current member</th>${wtd ? "<th>Weighted vote</th>" : ""}<th>2026 race</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 function statCards() {
   const tot = DATA.reduce((a, b) => a + b.total, 0), up = DATA.reduce((a, b) => a + stats(b).up, 0), con = DATA.reduce((a, b) => a + stats(b).con, 0);
