@@ -116,6 +116,20 @@ footer{font-size:12px;color:var(--ink-3);border-top:1px solid var(--rule);paddin
 .h-X.h-no{fill-opacity:.16}
 .sec-h{font-family:var(--display);font-stretch:85%;font-size:24px;margin:0 0 6px;text-wrap:balance}
 .sec-p{margin:0 0 14px;color:var(--ink-2);max-width:70ch}
+.find{display:flex;gap:8px;flex-wrap:wrap;max-width:640px}
+.find input{flex:1 1 260px;font:inherit;font-size:15px;padding:9px 12px;border:1px solid var(--rule);border-radius:6px;background:var(--panel);color:var(--ink);min-width:0}
+.find input:focus-visible,.find button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.find button{font:inherit;font-size:14px;font-weight:700;padding:9px 16px;border:0;border-radius:6px;background:var(--ink);color:var(--bg);cursor:pointer}
+.find button[disabled]{opacity:.6;cursor:progress}
+#find-out:not(:empty){margin-top:12px}
+.fcard{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:12px 14px;max-width:640px;display:flex;flex-direction:column;gap:8px;font-size:14px}
+.fcard .where{font-size:12px;color:var(--ink-3)}
+.fcard h3{font-family:var(--display);font-stretch:85%;font-size:17px;margin:0}
+.fcard .rep{border-top:1px dashed var(--rule);padding-top:8px}
+.fcard .rep b{font-size:15px}
+.fcard .note{color:var(--ink-2);margin:0}
+.fcard .more{font-size:13px;color:var(--ink-2);background:none;border:0;padding:0;cursor:pointer;text-align:left;font:inherit;text-decoration:underline;align-self:flex-start}
+.fcard a{color:inherit}
 .watch{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px}
 .wcard{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
 .wcard .wh{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
@@ -281,6 +295,16 @@ footer{font-size:12px;color:var(--ink-3);border-top:1px solid var(--rule);paddin
       </div>
     </div>
   </header>
+  <section aria-labelledby="find-h">
+    <h2 class="sec-h" id="find-h">Find your county legislator</h2>
+    <p class="sec-p">Enter a New York address to see who represents you on your county's legislature or board, and whether that seat is contested on Nov. 3.</p>
+    <form class="find" id="find" role="search">
+      <input id="addr" type="text" autocomplete="street-address" placeholder="Street address, city or town, NY" aria-label="Street address" required="">
+      <button type="submit">Look up</button>
+    </form>
+    <div id="find-out" aria-live="polite"></div>
+    <p class="tnote">Addresses are located with OpenStreetMap's Nominatim service. District boundaries come from county and city GIS data; where a county doesn't publish its district map, the lookup links to the county's own site.</p>
+  </section>
   <section aria-labelledby="grid-h">
     <h2 class="sec-h" id="grid-h">New York's County Legislatures</h2>
     <div class="controls" style="border-top:0;padding-top:0">
@@ -905,6 +929,68 @@ $("#sort").addEventListener("click", e => { const x = e.target.closest("button")
 $("#hl").addEventListener("click", () => { state.hl = !state.hl; save(); render(); });
 $("#grid").addEventListener("click", e => { const r = e.target.closest(".hemi"); if (!r) return; openBody(r.dataset.s, false);
   const n = document.querySelector(`.hemi[data-s="${CSS.escape(r.dataset.s)}"]`); n && n.focus(); });
+// ---- address lookup: geocode (Nominatim) → town (Census county subdivisions) → district (county GIS) ----
+const LK = { towns: null, dist: {} };
+const ROOT = window.COUNTY_LINK ? window.COUNTY_LINK("").replace(/county\/+$/, "") : "./";
+const getJSON = u => fetch(ROOT + u).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+const DISTRICT_FILES = new Set(["albany", "allegany", "clinton", "cortland", "dutchess", "lewis", "monroe", "nassau", "onondaga",
+  "putnam", "rockland", "suffolk", "tioga", "tompkins", "westchester", "new-york-city"]);
+function inRing(x, y, ring) { let ins = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins; }
+  return ins; }
+function inGeom(x, y, g) {
+  if (!g) return false;
+  if (g.type === "GeometryCollection") return g.geometries.some(h => inGeom(x, y, h));
+  const polys = g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
+  return polys.some(p => inRing(x, y, p[0]) && !p.slice(1).some(h => inRing(x, y, h)));
+}
+const muni = seat => String(seat).toLowerCase().replace(/\(.*?\)/g, "").replace(/\s+(wards?|at-large)\b.*$/, "").replace(/\s+(city|town)$/, "").trim();
+function townSeats(b, town) {         // supervisors representing this town or city
+  const all = seatsOf(b).filter(m => muni(m.seat) === town.n.toLowerCase());
+  const isCity = m => /city|ward/i.test(m.seat);
+  const pick = all.filter(m => town.t === "city" ? isCity(m) : !isCity(m));
+  return pick.length ? pick : all;
+}
+function repHTML(b, m) {
+  const base = b.k === "L" && /^\d+$/.test(String(m.seat)) ? (b.c === "New York City" ? "Council District " : "District ") + m.seat : m.seat;
+  return `<div class="rep"><b>${esc(m.name)}</b> <span class="pill ${cls(m.party)}">${esc(m.party)}</span>
+    <span class="where">· ${esc(base)}${m.weight ? ` · ${m.weight} weighted votes` : ""}</span><br>${raceCell(m.race)}</div>`;
+}
+async function lookup(q) {
+  const out = $("#find-out"), btn = $("#find button");
+  out.innerHTML = `<p class="note">Looking up…</p>`; btn.disabled = true;
+  try {
+    const u = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&bounded=1&viewbox=-79.77,45.02,-71.85,40.49&q=" + encodeURIComponent(q);
+    const [hits, towns] = await Promise.all([fetch(u, { headers: { "Accept-Language": "en" } }).then(r => r.json()), LK.towns || getJSON("lookup/towns.json")]);
+    LK.towns = towns;
+    if (!hits.length) { out.innerHTML = `<div class="fcard"><p class="note">We couldn't find that address in New York. Try adding the city or town and ZIP code.</p></div>`; return; }
+    const x = +hits[0].lon, y = +hits[0].lat, town = towns.find(t => inGeom(x, y, t.g));
+    if (!town) { out.innerHTML = `<div class="fcard"><p class="note">That address doesn't appear to be in New York State.</p></div>`; return; }
+    const b = byFips[town.f], where = `${town.t ? town.t[0].toUpperCase() + town.t.slice(1) + " of " : ""}${town.n}, ${b.c === "New York City" ? "New York City" : b.c + " County"}`;
+    let reps = [], note = "";
+    if (b.k === "S") {
+      reps = townSeats(b, town);
+      if (reps.length > 1 && town.t === "city") note = "Each ward of the city elects its own supervisor; yours is one of these.";
+      if (!reps.length) note = "This area isn't part of a town with its own seat on the board.";
+    } else if (DISTRICT_FILES.has(b.slug)) {
+      const dist = LK.dist[b.slug] || (LK.dist[b.slug] = await getJSON(`lookup/districts/${b.slug}.json`));
+      const d = Object.keys(dist).find(k => inGeom(x, y, dist[k]));
+      reps = d ? seatsOf(b).filter(m => String(m.seat) === d) : [];
+      if (!d) note = "We couldn't match that address to a district.";
+    } else {
+      note = `${esc(b.c)} County doesn't publish its legislative district map as data, so we can't pinpoint your district here.${b.website ? ` Find it on the <a href="${esc(b.website)}" target="_blank" rel="noopener">${esc(bodyName(b))} site ↗</a>.` : ""}`;
+    }
+    out.innerHTML = `<div class="fcard"><div class="where">${esc(where)} · matched to ${esc(hits[0].display_name.split(",").slice(0, 3).join(","))}</div>
+      <h3>${reps.length > 1 ? "Your representatives" : reps.length ? "Your representative" : "Your county body"}: ${esc(bodyName(b))}</h3>
+      ${reps.map(m => repHTML(b, m)).join("")}${note ? `<p class="note">${note}</p>` : ""}
+      <button type="button" class="more" data-s="${esc(b.slug)}">See all of ${esc(b.c === "New York City" ? "New York City" : b.c + " County")} →</button></div>`;
+  } catch (e) {
+    out.innerHTML = `<div class="fcard"><p class="note">The lookup failed (${esc(e.message)}). Please try again in a moment.</p></div>`;
+  } finally { btn.disabled = false; }
+}
+$("#find").addEventListener("submit", e => { e.preventDefault(); const q = $("#addr").value.trim(); if (q) lookup(q); });
+$("#find-out").addEventListener("click", e => { const x = e.target.closest(".more[data-s]"); if (x) openBody(x.dataset.s, true); });
 statCards();
 renderWatch();
 renderTrend();
