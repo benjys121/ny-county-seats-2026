@@ -933,8 +933,6 @@ $("#grid").addEventListener("click", e => { const r = e.target.closest(".hemi");
 const LK = { towns: null, dist: {} };
 const ROOT = window.COUNTY_LINK ? window.COUNTY_LINK("").replace(/county\/+$/, "") : "./";
 const getJSON = u => fetch(ROOT + u).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
-const DISTRICT_FILES = new Set(["albany", "allegany", "clinton", "cortland", "dutchess", "lewis", "monroe", "nassau", "onondaga",
-  "putnam", "rockland", "suffolk", "tioga", "tompkins", "westchester", "new-york-city"]);
 function inRing(x, y, ring) { let ins = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [xi, yi] = ring[i], [xj, yj] = ring[j];
     if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins; }
@@ -973,10 +971,10 @@ async function lookup(q) {
       reps = townSeats(b, town);
       if (reps.length > 1 && town.t === "city") note = "Each ward of the city elects its own supervisor; yours is one of these.";
       if (!reps.length) note = "This area isn't part of a town with its own seat on the board.";
-    } else if (DISTRICT_FILES.has(b.slug)) {
-      const dist = LK.dist[b.slug] || (LK.dist[b.slug] = await getJSON(`lookup/districts/${b.slug}.json`));
+    } else if (LK.dist[b.slug] !== null && (LK.dist[b.slug] = LK.dist[b.slug] || await getJSON(`lookup/districts/${b.slug}.json`).catch(() => null))) {
+      const dist = LK.dist[b.slug];
       const d = Object.keys(dist).find(k => inGeom(x, y, dist[k]));
-      reps = d ? seatsOf(b).filter(m => String(m.seat) === d) : [];
+      reps = d ? seatsOf(b).filter(m => d.split("|").includes(String(m.seat))) : [];
       if (!d) note = "We couldn't match that address to a district.";
     } else {
       note = `${esc(b.c)} County doesn't publish its legislative district map as data, so we can't pinpoint your district here.${b.website ? ` Find it on the <a href="${esc(b.website)}" target="_blank" rel="noopener">${esc(bodyName(b))} site ↗</a>.` : ""}`;
