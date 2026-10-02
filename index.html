@@ -962,7 +962,8 @@ async function lookup(q) {
     } else if (LK.dist[b.slug] !== null && (LK.dist[b.slug] = LK.dist[b.slug] || await getJSON(`lookup/districts/${b.slug}.json`).catch(() => null))) {
       const dist = LK.dist[b.slug];
       const d = Object.keys(dist).find(k => inGeom(x, y, dist[k]));
-      reps = d ? seatsOf(b).filter(m => d.split("|").includes(String(m.seat))) : [];
+      reps = d ? seatsOf(b).filter(m => d.split(/[|~]/).includes(String(m.seat))) : [];
+      if (d && d.includes("~")) note = "Part of this area is split between districts and we don't have the exact lines, so this list includes the neighboring district's representatives too.";
       if (!d) note = "We couldn't match that address to a district.";
     } else {
       note = `${esc(b.c)} County doesn't publish its legislative district map as data, so we can't pinpoint your district here.${b.website ? ` Find it on the <a href="${esc(b.website)}" target="_blank" rel="noopener">${esc(bodyName(b))} site ↗</a>.` : ""}`;
