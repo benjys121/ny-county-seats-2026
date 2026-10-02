@@ -117,10 +117,15 @@ footer{font-size:12px;color:var(--ink-3);border-top:1px solid var(--rule);paddin
 .sec-h{font-family:var(--display);font-stretch:85%;font-size:24px;margin:0 0 6px;text-wrap:balance}
 .sec-p{margin:0 0 14px;color:var(--ink-2);max-width:70ch}
 .find{display:flex;gap:8px;flex-wrap:wrap;max-width:640px}
-.find input{flex:1 1 260px;font:inherit;font-size:15px;padding:9px 12px;border:1px solid var(--rule);border-radius:6px;background:var(--panel);color:var(--ink);min-width:0}
+.combo{flex:1 1 260px;position:relative;min-width:0;display:flex}
+.find input{flex:1 1 auto;width:100%;font:inherit;font-size:15px;padding:9px 12px;border:1px solid var(--rule);border-radius:6px;background:var(--panel);color:var(--ink);min-width:0}
 .find input:focus-visible,.find button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .find button{font:inherit;font-size:14px;font-weight:700;padding:9px 16px;border:0;border-radius:6px;background:var(--ink);color:var(--bg);cursor:pointer}
 .find button[disabled]{opacity:.6;cursor:progress}
+#sugg{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:20;margin:0;padding:4px 0;list-style:none;background:var(--panel);border:1px solid var(--rule);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.12);max-height:280px;overflow:auto}
+#sugg li{padding:7px 12px;font-size:14px;cursor:pointer;line-height:1.3}
+#sugg li small{display:block;color:var(--ink-3);font-size:12px}
+#sugg li[aria-selected="true"],#sugg li:hover{background:var(--hover)}
 #find-out:not(:empty){margin-top:12px}
 .fcard{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:12px 14px;max-width:640px;display:flex;flex-direction:column;gap:8px;font-size:14px}
 .fcard .where{font-size:12px;color:var(--ink-3)}
@@ -299,11 +304,12 @@ footer{font-size:12px;color:var(--ink-3);border-top:1px solid var(--rule);paddin
     <h2 class="sec-h" id="find-h">Find your county legislator</h2>
     <p class="sec-p">Enter a New York address to see who represents you on your county's legislature or board, and whether that seat is contested on Nov. 3.</p>
     <form class="find" id="find" role="search">
-      <input id="addr" type="text" autocomplete="street-address" placeholder="Street address, city or town, NY" aria-label="Street address" required="">
+      <div class="combo"><input id="addr" type="text" autocomplete="off" placeholder="Street address, city or town, NY" aria-label="Street address" required="" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugg">
+        <ul id="sugg" role="listbox" aria-label="Suggested addresses" hidden=""></ul></div>
       <button type="submit">Look up</button>
     </form>
     <div id="find-out" aria-live="polite"></div>
-    <p class="tnote">Addresses are located with OpenStreetMap's Nominatim service. District boundaries come from county and city GIS data; where a county doesn't publish its district map, the lookup links to the county's own site.</p>
+    <p class="tnote">Address suggestions and locations come from OpenStreetMap data, via the Photon and Nominatim services. District boundaries come from county and city GIS data; where a county doesn't publish its district map, the lookup links to the county's own site.</p>
   </section>
   <section aria-labelledby="grid-h">
     <h2 class="sec-h" id="grid-h">New York's County Legislatures</h2>
@@ -943,12 +949,14 @@ function repHTML(b, m) {
   return `<div class="rep"><b>${esc(m.name)}</b> <span class="pill ${cls(m.party)}">${esc(m.party)}</span>
     <span class="where">· ${esc(base)}${m.weight ? ` · ${m.weight} weighted votes` : ""}</span><br>${raceCell(m.race)}</div>`;
 }
-async function lookup(q) {
+async function lookup(q, pick) {
   const out = $("#find-out"), btn = $("#find button");
   out.innerHTML = `<p class="note">Looking up…</p>`; btn.disabled = true;
   try {
     const u = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&bounded=1&viewbox=-79.77,45.02,-71.85,40.49&q=" + encodeURIComponent(q);
-    const [hits, towns] = await Promise.all([fetch(u, { headers: { "Accept-Language": "en" } }).then(r => r.json()), LK.towns || getJSON("lookup/towns.json")]);
+    const hitsP = pick ? Promise.resolve([{ lon: pick.x, lat: pick.y, display_name: pick.label }])
+      : fetch(u, { headers: { "Accept-Language": "en" } }).then(r => r.json());
+    const [hits, towns] = await Promise.all([hitsP, LK.towns || getJSON("lookup/towns.json")]);
     LK.towns = towns;
     if (!hits.length) { out.innerHTML = `<div class="fcard"><p class="note">We couldn't find that address in New York. Try adding the city or town and ZIP code.</p></div>`; return; }
     const x = +hits[0].lon, y = +hits[0].lat, town = towns.find(t => inGeom(x, y, t.g));
@@ -976,6 +984,45 @@ async function lookup(q) {
     out.innerHTML = `<div class="fcard"><p class="note">The lookup failed (${esc(e.message)}). Please try again in a moment.</p></div>`;
   } finally { btn.disabled = false; }
 }
+// address suggestions as you type (Photon, OpenStreetMap data; Nominatim's policy doesn't allow autocomplete)
+(function () {
+  const inp = $("#addr"), list = $("#sugg");
+  let items = [], active = -1, timer = 0, seq = 0;
+  const label = p => [[p.housenumber, p.street].filter(Boolean).join(" ") || p.name, p.city || p.town || p.village || p.locality || p.county,
+    ["NY", p.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const sub = p => p.name && p.street && p.name !== p.street ? p.name : (p.county ? p.county + " County" : "");
+  function close() { list.hidden = true; inp.setAttribute("aria-expanded", "false"); inp.removeAttribute("aria-activedescendant"); active = -1; }
+  function paint() {
+    list.innerHTML = items.map((it, i) => `<li id="sugg-${i}" role="option" aria-selected="${i === active}" data-i="${i}">${esc(it.label)}${it.sub ? `<small>${esc(it.sub)}</small>` : ""}</li>`).join("");
+    list.hidden = !items.length; inp.setAttribute("aria-expanded", String(!!items.length));
+    if (active >= 0) inp.setAttribute("aria-activedescendant", "sugg-" + active); else inp.removeAttribute("aria-activedescendant");
+  }
+  function choose(i) { const it = items[i]; if (!it) return; inp.value = it.label; close(); lookup(it.label, it); }
+  inp.addEventListener("input", () => {
+    clearTimeout(timer); const q = inp.value.trim();
+    if (q.length < 4) { items = []; close(); return; }
+    timer = setTimeout(async () => {
+      const my = ++seq;
+      try {
+        const r = await fetch("https://photon.komoot.io/api/?limit=8&lang=en&bbox=-79.77,40.49,-71.85,45.02&q=" + encodeURIComponent(q)).then(r => r.json());
+        if (my !== seq) return;           // a newer keystroke already asked again
+        const seen = new Set();
+        items = r.features.filter(f => f.properties.state === "New York").map(f => ({ label: label(f.properties), sub: sub(f.properties),
+          x: f.geometry.coordinates[0], y: f.geometry.coordinates[1] })).filter(it => !seen.has(it.label) && seen.add(it.label)).slice(0, 6);
+        active = -1; paint();
+      } catch (e) { items = []; close(); }
+    }, 250);
+  });
+  inp.addEventListener("keydown", e => {
+    if (list.hidden) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); active = (active + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length; paint(); }
+    else if (e.key === "Enter" && active >= 0) { e.preventDefault(); choose(active); }
+    else if (e.key === "Escape") close();
+  });
+  list.addEventListener("mousedown", e => { const li = e.target.closest("li"); if (li) { e.preventDefault(); choose(+li.dataset.i); } });
+  inp.addEventListener("blur", () => setTimeout(close, 100));
+  $("#find").addEventListener("submit", () => close());
+})();
 $("#find").addEventListener("submit", e => { e.preventDefault(); const q = $("#addr").value.trim(); if (q) lookup(q); });
 $("#find-out").addEventListener("click", e => { const x = e.target.closest(".more[data-s]"); if (x) openBody(x.dataset.s, true); });
 statCards();
