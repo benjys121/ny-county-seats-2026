@@ -277,6 +277,13 @@ footer{font-size:12px;color:var(--ink-3);border-top:1px solid var(--rule);paddin
 :root[data-look="c"] .mt td{border-bottom:1px dashed var(--rule)}
 :root[data-look="c"] .seg button[aria-pressed="true"]{background:var(--ink);color:#fdf2dd}
 :root[data-look="c"] .toggle[aria-pressed="true"] .knob{background:var(--gold)}
+@media (max-width:600px){
+  .hemis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  :root[data-look] .hemi{padding:6px 8px 6px}
+  :root[data-look] .hemi .cn{font-size:14px;letter-spacing:0}
+  .hemi .flag{font-size:8px;padding:1px 4px;letter-spacing:.03em}
+  .hemi .fig{font-size:11px}.hemi .pty{font-size:10px;line-height:1.3}
+}
 </style>
 <script>window.PRESET_SLUG="yates";window.COUNTY_LINK=s=>"../../county/"+s+"/";</script>
 </head>
