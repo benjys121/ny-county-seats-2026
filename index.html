@@ -978,6 +978,7 @@ async function lookup(q, pick) {
       const dist = LK.dist[b.slug];
       const d = Object.keys(dist).find(k => inGeom(x, y, dist[k]));
       reps = d ? seatsOf(b).filter(m => d.split(/[|~]/).includes(String(m.seat))) : [];
+      if (b.c === "Chemung") note = "Chemung's new district lines, used for the Nov. 3 election, take effect Jan. 1, 2027. This shows your district under the new lines; the current legislator listed represents the old district with the same number, which may cover a different area.";
       if (d && d.includes("~")) note = "Part of this area is split between districts and we don't have the exact lines, so this list includes the neighboring district's representatives too.";
       if (!d) note = "We couldn't match that address to a district.";
     } else {
