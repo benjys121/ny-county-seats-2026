@@ -999,7 +999,7 @@ async function lookup(q, pick) {
     } else {
       note = `${esc(b.c)} County doesn't publish its legislative district map as data, so we can't pinpoint your district here.${b.website ? ` Find it on the <a href="${esc(b.website)}" target="_blank" rel="noopener">${esc(bodyName(b))} site ↗</a>.` : ""}`;
     }
-    out.innerHTML = `<div class="fcard"><div class="where">${esc(where)} · matched to ${esc(hits[0].display_name.split(",").slice(0, 3).join(","))}</div>
+    out.innerHTML = `<div class="fcard"><div class="where">Matched to ${esc(hits[0].display_name.split(",").slice(0, 3).join(","))}</div>
       ${reps.length === 1 ? repHTML(b, reps[0], true)
         : reps.length ? `<h3>Your representatives</h3>${reps.map(m => repHTML(b, m, false)).join("")}`
         : `<h3>Your county body: ${esc(bodyName(b))}</h3>`}${note ? `<p class="note">${note}</p>` : ""}
