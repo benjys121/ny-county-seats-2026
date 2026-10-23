@@ -130,8 +130,8 @@ footer{font-size:12px;color:var(--ink-3);border-top:1px solid var(--rule);paddin
 .fcard{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:12px 14px;max-width:640px;display:flex;flex-direction:column;gap:8px;font-size:14px}
 .fcard .where{font-size:12px;color:var(--ink-3)}
 .fcard h3{font-family:var(--display);font-stretch:85%;font-size:17px;margin:0}
-.fcard .rep{border-top:1px dashed var(--rule);padding-top:8px}
-.fcard .rep b{font-size:15px}
+.fcard .rep{border-top:1px dashed var(--rule);padding-top:8px}.fcard h3 + .rep{border-top:0;padding-top:0}
+.fcard .rep{display:flex;flex-direction:column;gap:3px}.fcard .rep .who{font-weight:700;font-size:15px}.fcard .status{margin:4px 0 0}.fcard .status .st{margin-right:6px}
 .fcard .note{color:var(--ink-2);margin:0}
 .fcard .more{font-size:13px;color:var(--ink-2);background:none;border:0;padding:0;cursor:pointer;text-align:left;font:inherit;text-decoration:underline;align-self:flex-start}
 .fcard a{color:inherit}
@@ -941,10 +941,23 @@ function townSeats(b, town) {         // supervisors representing this town or c
   const pick = all.filter(m => town.t === "city" ? isCity(m) : !isCity(m));
   return pick.length ? pick : all;
 }
-function repHTML(b, m) {
-  const base = b.k === "L" && /^\d+$/.test(String(m.seat)) ? (b.c === "New York City" ? "Council District " : "District ") + m.seat : m.seat;
-  return `<div class="rep"><b>${esc(m.name)}</b> <span class="pill ${cls(m.party)}">${esc(m.party)}</span>
-    <span class="where">· ${esc(base)}${m.weight ? ` · ${m.weight} weighted votes` : ""}</span><br>${raceCell(m.race)}</div>`;
+function seatLabel(b, m) {
+  return b.k === "L" && /^\d+$/.test(String(m.seat)) ? (b.c === "New York City" ? "Council District " : "District ") + m.seat : m.seat;
+}
+// "open seat" when the current member's surname isn't among the candidates
+const surname = n => String(n).replace(/\(.*?\)|".*?"|,/g, " ").split(/\s+/).filter(w => w && !/^(jr|sr|ii|iii|iv)\.?$/i.test(w)).pop()?.toLowerCase() || "";
+const open = (r, m) => m && r.cands.length && !r.cands.some(([n]) => surname(n) === surname(m.name)) ? ` <span class="where">(open seat: ${esc(m.name)} isn't running)</span>` : "";
+function raceStatus(r, m) {               // what's happening to this seat on Nov. 3
+  if (!r) return `<p class="status"><span class="st">Not up for election</span> This seat isn't on the ballot this year.</p>`;
+  const names = r.cands.map(([n, ps]) => `${esc(n)} ${lineTags(ps)}`);
+  if (r.unc) return `<p class="status"><span class="st">Uncontested</span> ${names.length ? `${names.join(", ")} ${names.length > 1 ? "are" : "is"} the only ${names.length > 1 ? "candidates" : "candidate"}.` : "No candidate filed."}${open(r, m)}</p>`;
+  return `<p class="status"><span class="st u">Contested</span>${r.n > 1 ? ` (${r.n} seats)` : ""} ${names.join(" vs. ")}${open(r, m)}</p>`;
+}
+function repHTML(b, m, solo) {
+  const who = `${esc(m.name)} <span class="pill ${cls(m.party)}">${esc(m.party)}</span>`;
+  const sub = `${esc(seatLabel(b, m))} · ${esc(bodyName(b))}${m.weight ? ` · ${m.weight} weighted votes` : ""}`;
+  return `<div class="rep">${solo ? `<h3>Your representative: ${who}</h3>` : `<div class="who">${who}</div>`}
+    <div class="where">${sub}</div>${raceStatus(m.race, m)}</div>`;
 }
 async function lookup(q, pick) {
   const out = $("#find-out"), btn = $("#find button");
@@ -975,8 +988,9 @@ async function lookup(q, pick) {
       note = `${esc(b.c)} County doesn't publish its legislative district map as data, so we can't pinpoint your district here.${b.website ? ` Find it on the <a href="${esc(b.website)}" target="_blank" rel="noopener">${esc(bodyName(b))} site ↗</a>.` : ""}`;
     }
     out.innerHTML = `<div class="fcard"><div class="where">${esc(where)} · matched to ${esc(hits[0].display_name.split(",").slice(0, 3).join(","))}</div>
-      <h3>${reps.length > 1 ? "Your representatives" : reps.length ? "Your representative" : "Your county body"}: ${esc(bodyName(b))}</h3>
-      ${reps.map(m => repHTML(b, m)).join("")}${note ? `<p class="note">${note}</p>` : ""}
+      ${reps.length === 1 ? repHTML(b, reps[0], true)
+        : reps.length ? `<h3>Your representatives</h3>${reps.map(m => repHTML(b, m, false)).join("")}`
+        : `<h3>Your county body: ${esc(bodyName(b))}</h3>`}${note ? `<p class="note">${note}</p>` : ""}
       <button type="button" class="more" data-s="${esc(b.slug)}">See all of ${esc(b.c === "New York City" ? "New York City" : b.c + " County")} →</button></div>`;
   } catch (e) {
     out.innerHTML = `<div class="fcard"><p class="note">The lookup failed (${esc(e.message)}). Please try again in a moment.</p></div>`;
